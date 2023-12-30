@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 ize-core = { path = "../ize-core" }
+rustyline = "13.0"

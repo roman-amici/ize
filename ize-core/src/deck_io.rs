@@ -1,25 +1,31 @@
-use std::{error::Error, fs::File, io::{ BufRead, BufReader, Lines, BufWriter, Write}, iter::Peekable, fmt::Display, str::ParseBoolError, collections::HashSet};
+use std::{
+    collections::HashSet,
+    error::Error,
+    fmt::Display,
+    fs::File,
+    io::{BufRead, BufReader, BufWriter, Lines, Write},
+    iter::Peekable,
+    str::ParseBoolError,
+};
 
-use crate::{Card, PracticeRun, Deck};
+use crate::{Card, Deck, PracticeRun};
 
 #[derive(Debug)]
 struct ParsingError {
-    error_message : String
+    error_message: String,
 }
 
 impl ParsingError {
-    pub fn new(error_message : String) -> Self {
-        ParsingError {
-            error_message
-        }
+    pub fn new(error_message: String) -> Self {
+        ParsingError { error_message }
     }
 
-    pub fn box_new(error_message : String) -> Box<Self> {
+    pub fn box_new(error_message: String) -> Box<Self> {
         Box::new(ParsingError::new(error_message))
     }
 }
 
-impl Display for ParsingError{
+impl Display for ParsingError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.error_message)
     }
@@ -39,7 +45,10 @@ impl Error for ParsingError {
     }
 }
 
-fn scan_or_error(reader : &mut Peekable<Lines<BufReader<File>>>, error_msg : &str) -> Result<(), Box<dyn Error>> {
+fn scan_or_error(
+    reader: &mut Peekable<Lines<BufReader<File>>>,
+    error_msg: &str,
+) -> Result<(), Box<dyn Error>> {
     if !scan(reader)? {
         Err(ParsingError::box_new(error_msg.to_string()))
     } else {
@@ -47,11 +56,10 @@ fn scan_or_error(reader : &mut Peekable<Lines<BufReader<File>>>, error_msg : &st
     }
 }
 
-fn scan(reader : &mut Peekable<Lines<BufReader<File>>>) -> Result<bool, Box<dyn Error>> {
+fn scan(reader: &mut Peekable<Lines<BufReader<File>>>) -> Result<bool, Box<dyn Error>> {
     // Iterate until we hit a non-empy line
 
     loop {
-
         if let Some(line) = reader.peek() {
             match line.as_ref() {
                 Ok(s) => {
@@ -61,8 +69,7 @@ fn scan(reader : &mut Peekable<Lines<BufReader<File>>>) -> Result<bool, Box<dyn 
                 }
                 _ => {}
             }
-        }
-        else  {
+        } else {
             return Ok(false);
         }
 
@@ -71,23 +78,25 @@ fn scan(reader : &mut Peekable<Lines<BufReader<File>>>) -> Result<bool, Box<dyn 
     }
 }
 
-fn read_id(reader : &mut Peekable<Lines<BufReader<File>>>) -> Result<usize, Box<dyn Error>> {
+fn read_id(reader: &mut Peekable<Lines<BufReader<File>>>) -> Result<usize, Box<dyn Error>> {
     if let Some(line) = reader.next() {
         let line = line?;
 
         if let Ok(id) = line.parse() {
             Ok(id)
         } else {
-            Err(ParsingError::box_new(format!("Card id {line} must be a number.")))
+            Err(ParsingError::box_new(format!(
+                "Card id {line} must be a number."
+            )))
         }
     } else {
-        Err(ParsingError::box_new("Deck file invalid. Expected card id.".to_string()))
+        Err(ParsingError::box_new(
+            "Deck file invalid. Expected card id.".to_string(),
+        ))
     }
 }
 
-
-fn read_text(reader : &mut Peekable<Lines<BufReader<File>>>) -> Result<String, Box<dyn Error>> {
-
+fn read_text(reader: &mut Peekable<Lines<BufReader<File>>>) -> Result<String, Box<dyn Error>> {
     if let Some(line) = reader.next() {
         let line = line?;
         Ok(line)
@@ -96,8 +105,9 @@ fn read_text(reader : &mut Peekable<Lines<BufReader<File>>>) -> Result<String, B
     }
 }
 
-fn read_card(reader : &mut Peekable<Lines<BufReader<File>>>) -> Result<Option<Card>, Box<dyn Error>> {
-
+fn read_card(
+    reader: &mut Peekable<Lines<BufReader<File>>>,
+) -> Result<Option<Card>, Box<dyn Error>> {
     // Done iterating
     if !scan(reader)? {
         return Ok(None);
@@ -107,37 +117,39 @@ fn read_card(reader : &mut Peekable<Lines<BufReader<File>>>) -> Result<Option<Ca
     let front = read_text(reader)?;
     let back = read_text(reader)?;
 
-    Ok(Some(Card{
+    Ok(Some(Card {
         front,
         back,
-        card_id
+        card_id,
     }))
 }
 
-pub fn load_deck(deck_path : &str) -> Result<Deck, Box<dyn Error>> {
+pub fn load_deck(deck_path: &str) -> Result<Deck, Box<dyn Error>> {
     let file = File::open(deck_path)?;
 
     let mut iter = BufReader::new(file).lines().into_iter().peekable();
+    let mut ids = HashSet::<usize>::new();
 
     let mut cards = vec![];
     while {
         if let Some(card) = read_card(&mut iter)? {
-            cards.push(card);
+            // Filter duplicates
+            if ids.insert(card.card_id) {
+                cards.push(card);
+            }
             true
         } else {
             false
         }
-    }{}
+    } {}
 
-    Ok(Deck{cards})
+    Ok(Deck { cards })
 }
 
-pub fn save_deck(filepath : &str, deck : Deck) -> Result<(), Box<dyn Error>>{
-
+pub fn save_deck(filepath: &str, deck: Deck) -> Result<(), Box<dyn Error>> {
     //Todo: write atomically...
     let file = File::create(filepath)?;
-    let mut writer = BufWriter::new(&file); 
-
+    let mut writer = BufWriter::new(&file);
 
     writeln!(&mut writer, "")?;
 
@@ -149,10 +161,11 @@ pub fn save_deck(filepath : &str, deck : Deck) -> Result<(), Box<dyn Error>>{
     }
 
     Ok(())
-    
 }
 
-fn read_id_list(reader : &mut Peekable<Lines<BufReader<File>>>) -> Result<Vec<usize>,Box<dyn Error>> {
+fn read_id_list(
+    reader: &mut Peekable<Lines<BufReader<File>>>,
+) -> Result<Vec<usize>, Box<dyn Error>> {
     let mut vec = vec![];
     loop {
         if let Some(line) = reader.peek() {
@@ -167,16 +180,14 @@ fn read_id_list(reader : &mut Peekable<Lines<BufReader<File>>>) -> Result<Vec<us
                 }
                 _ => {}
             }
-        }
-        else {
+        } else {
             // Return on iteration end
             return Ok(vec);
         }
     }
 }
 
-fn load_practice_run_file(filepath : &str) -> Result<PracticeRun, Box<dyn Error>> {
-
+fn load_practice_run_file(filepath: &str) -> Result<PracticeRun, Box<dyn Error>> {
     let file = File::open(filepath)?;
     let mut iter = BufReader::new(file).lines().into_iter().peekable();
     let reader = &mut iter;
@@ -191,31 +202,35 @@ fn load_practice_run_file(filepath : &str) -> Result<PracticeRun, Box<dyn Error>
         let header = read_text(reader)?.to_lowercase();
         if header == "remaining" {
             run.remaining = read_id_list(reader)?;
-        }
-        else if header == "working" {
-            run.needs_work = read_id_list(reader)?;
-        }
-        else if header == "incorrect" {
+        } else if header == "working" {
+            run.working = read_id_list(reader)?;
+        } else if header == "incorrect" {
             run.incorrect = read_id_list(reader)?;
         } else if header == "memorized" {
             run.memorized = read_id_list(reader)?;
         } else {
-            return Err(ParsingError::box_new(format!("Unexpected heading {}", header)))
+            return Err(ParsingError::box_new(format!(
+                "Unexpected heading {}",
+                header
+            )));
         }
     }
 
     Ok(run)
 }
 
-fn check_duplicates(run : &PracticeRun) -> Result<HashSet<usize>, Box<dyn Error>> {
+fn check_duplicates(run: &PracticeRun) -> Result<HashSet<usize>, Box<dyn Error>> {
     let mut set = HashSet::<usize>::new();
 
-    let id_lists = [&run.remaining, &run.incorrect, &run.memorized, &run.needs_work];
+    let id_lists = [&run.remaining, &run.incorrect, &run.memorized, &run.working];
 
     for v in id_lists {
         for id in v.iter() {
-            if set.insert(*id) {
-                return Err(ParsingError::box_new(format!("Run file invalid: id {} found in multiple locations.", id)));
+            if !set.insert(*id) {
+                return Err(ParsingError::box_new(format!(
+                    "Run file invalid: id {} found in multiple locations.",
+                    id
+                )));
             }
         }
     }
@@ -223,8 +238,13 @@ fn check_duplicates(run : &PracticeRun) -> Result<HashSet<usize>, Box<dyn Error>
     Ok(set)
 }
 
-fn remove_id(run : &mut PracticeRun, id : usize) {
-    let id_lists = [&mut run.remaining, &mut run.incorrect, &mut run.memorized, &mut run.needs_work];
+fn remove_id(run: &mut PracticeRun, id: usize) {
+    let id_lists = [
+        &mut run.remaining,
+        &mut run.incorrect,
+        &mut run.memorized,
+        &mut run.working,
+    ];
 
     for list in id_lists {
         if let Some(index) = list.iter().position(|_id| *_id == id) {
@@ -232,9 +252,9 @@ fn remove_id(run : &mut PracticeRun, id : usize) {
             return;
         }
     }
-} 
+}
 
-pub fn load_practice_run(filepath : &str) -> Result<(PracticeRun,Deck), Box<dyn Error>> {
+pub fn load_practice_run(filepath: &str) -> Result<(PracticeRun, Deck), Box<dyn Error>> {
     let mut run = load_practice_run_file(filepath)?;
 
     let run_ids = check_duplicates(&run)?;
@@ -249,7 +269,7 @@ pub fn load_practice_run(filepath : &str) -> Result<(PracticeRun,Deck), Box<dyn 
     }
 
     // Remove any cards from the run that have been removed from the deck
-    let deck_ids : HashSet<usize> = deck.cards.iter().map(|c| c.card_id).collect();
+    let deck_ids: HashSet<usize> = deck.cards.iter().map(|c| c.card_id).collect();
 
     for id in run_ids.iter() {
         if !deck_ids.contains(id) {
@@ -257,11 +277,10 @@ pub fn load_practice_run(filepath : &str) -> Result<(PracticeRun,Deck), Box<dyn 
         }
     }
 
-    Ok((run,deck))
+    Ok((run, deck))
 }
 
-fn write_ids(w : &mut impl Write, ids : &[usize]) -> Result<(), Box<dyn Error>> {
-
+fn write_ids(w: &mut impl Write, ids: &[usize]) -> Result<(), Box<dyn Error>> {
     for id in ids.iter() {
         writeln!(w, "{}", id)?;
     }
@@ -269,7 +288,7 @@ fn write_ids(w : &mut impl Write, ids : &[usize]) -> Result<(), Box<dyn Error>> 
     Ok(())
 }
 
-pub fn save_practice_run(filepath : &str, run : &PracticeRun) -> Result<(), Box<dyn Error>>{
+pub fn save_practice_run(filepath: &str, run: &PracticeRun) -> Result<(), Box<dyn Error>> {
     //Todo: write atomically...
     let file = File::create(filepath)?;
     let mut writer = BufWriter::new(&file);
@@ -284,7 +303,7 @@ pub fn save_practice_run(filepath : &str, run : &PracticeRun) -> Result<(), Box<
     write_ids(w, &run.remaining)?;
 
     writeln!(w, "working")?;
-    write_ids(w, &run.needs_work)?;
+    write_ids(w, &run.working)?;
 
     writeln!(w, "incorrect")?;
     write_ids(w, &run.incorrect)?;
