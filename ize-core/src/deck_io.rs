@@ -63,7 +63,7 @@ fn scan(reader: &mut Peekable<Lines<BufReader<File>>>) -> Result<bool, Box<dyn E
         if let Some(line) = reader.peek() {
             match line.as_ref() {
                 Ok(s) => {
-                    if s.trim().is_empty() {
+                    if !s.trim().is_empty() {
                         return Ok(true);
                     }
                 }

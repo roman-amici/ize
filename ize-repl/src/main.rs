@@ -33,10 +33,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     }
 
-    
-
-
-    Ok(())
 }
 
 fn setup_run(category : RunCategory, run : &mut PracticeRun) {
@@ -168,8 +164,7 @@ fn practice_run(rl : &mut Editor<(), FileHistory>, mut run: PracticeRun, deck: D
         }
 
         if !next_card( rl, &mut run, &deck)? {
-        } else {
-            break;
+            break
         }
     }
 
