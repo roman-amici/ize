@@ -1,8 +1,8 @@
 use std::{
-    collections::HashSet,
+    collections::{HashSet, HashMap},
     error::Error,
     fmt::Display,
-    fs::File,
+    fs::{File, self},
     io::{BufRead, BufReader, BufWriter, Lines, Write},
     iter::Peekable,
     str::ParseBoolError,
@@ -128,15 +128,12 @@ pub fn load_deck(deck_path: &str) -> Result<Deck, Box<dyn Error>> {
     let file = File::open(deck_path)?;
 
     let mut iter = BufReader::new(file).lines().into_iter().peekable();
-    let mut ids = HashSet::<usize>::new();
 
-    let mut cards = vec![];
+    let mut cards = HashMap::<usize, Card>::new();
     while {
         if let Some(card) = read_card(&mut iter)? {
-            // Filter duplicates
-            if ids.insert(card.card_id) {
-                cards.push(card);
-            }
+            // If there are duplicates, onlt the last one will be taken.
+            cards.insert(card.card_id, card);
             true
         } else {
             false
@@ -153,7 +150,7 @@ pub fn save_deck(filepath: &str, deck: Deck) -> Result<(), Box<dyn Error>> {
 
     writeln!(&mut writer, "")?;
 
-    for card in deck.cards {
+    for (_,card) in deck.cards {
         writeln!(&mut writer, "{}", card.card_id)?;
         writeln!(&mut writer, "{}", &card.front)?;
         writeln!(&mut writer, "{}", &card.back)?;
@@ -193,6 +190,7 @@ fn load_practice_run_file(filepath: &str) -> Result<PracticeRun, Box<dyn Error>>
     let reader = &mut iter;
 
     let mut run = PracticeRun::new();
+    run.last_save = fs::canonicalize(filepath)?.to_str().unwrap().to_string();
 
     scan_or_error(reader, "Expected deck file path.")?;
 
@@ -262,17 +260,14 @@ pub fn load_practice_run(filepath: &str) -> Result<(PracticeRun, Deck), Box<dyn 
     let deck = load_deck(&run.deck_path)?;
 
     // Add any newly added cards into the run set.
-    for card in deck.cards.iter() {
+    for (_,card) in deck.cards.iter() {
         if !run_ids.contains(&card.card_id) {
             run.remaining.push(card.card_id);
         }
     }
 
-    // Remove any cards from the run that have been removed from the deck
-    let deck_ids: HashSet<usize> = deck.cards.iter().map(|c| c.card_id).collect();
-
     for id in run_ids.iter() {
-        if !deck_ids.contains(id) {
+        if !deck.cards.contains_key(id) {
             remove_id(&mut run, *id);
         }
     }

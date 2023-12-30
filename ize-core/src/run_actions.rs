@@ -1,3 +1,5 @@
+use std::{error::Error, fmt::Display};
+
 use rand::{seq::SliceRandom, thread_rng};
 
 use crate::PracticeRun;
@@ -24,6 +26,26 @@ impl Into<usize> for RunCategory {
 #[derive(Debug, Clone, Copy)]
 pub enum RunActionError {
     IdNotFound(usize, RunCategory),
+}
+
+impl Display for RunActionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("{:?}", &self))
+    }
+}
+
+impl Error for RunActionError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+
+    fn description(&self) -> &str {
+        "description() is deprecated; use Display"
+    }
+
+    fn cause(&self) -> Option<&dyn Error> {
+        self.source()
+    }
 }
 
 impl PracticeRun {
@@ -85,5 +107,11 @@ impl PracticeRun {
         let mut src: Vec<usize> = array[src_cat].drain(..).collect();
 
         array[dest_cat].append(&mut src);
+    }
+
+    pub fn skip(&mut self) {
+        if let Some(element) = self.remaining.pop() {
+            self.remaining.insert(0, element);
+        }
     }
 }
