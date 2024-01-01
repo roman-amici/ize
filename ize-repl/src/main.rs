@@ -58,7 +58,8 @@ fn category_choice(rl : &mut Editor<(), FileHistory>, run : &mut PracticeRun) ->
 
         let all = run.remaining.len() + incorrect_len + working_len + memorized_len;
     
-        println!("1: all ({}), 2: incorrect ({}), 3: working ({}), 4: memorized ({}), or q to quit", all, incorrect_len, working_len, memorized_len);
+        println!("1: all ({}), 2: incorrect ({}), 3: working ({}), 4: memorized ({}), or quit", 
+            all, incorrect_len, working_len, memorized_len);
     
         let line = rl.readline(">>")?;
 
@@ -87,20 +88,31 @@ fn category_choice(rl : &mut Editor<(), FileHistory>, run : &mut PracticeRun) ->
 
 }
 
+fn print_card(rl : &mut Editor<(), FileHistory>, card : &Card, show_back : bool) -> Result<(), Box<dyn Error>> {
+    rl.clear_screen()?;
+    println!("{}", card.front);
+
+    if show_back {
+        println!("{}", card.back);
+    }
+
+    Ok(())
+}
+
 fn next_card(rl : &mut Editor<(), FileHistory>, run : &mut PracticeRun, deck : &Deck) -> Result<bool, Box<dyn Error>> {
     let card_id = run.remaining.last().expect("Next card called on empty deck.");
 
     let card = deck.cards.get(card_id).expect("Card not found in deck.");
 
-    println!("{}", card.front);
+    print_card(rl, card, false)?;
 
-    let line = rl.readline("< space >")?;
+    let line = rl.readline("< enter >")?;
 
     if line == "q" || line == "quit" {
         return Ok(false);
     }
 
-    println!("{}", card.back);
+    print_card(rl, card,  true)?;
 
     card_choice(rl, *card_id, run)
 }
@@ -108,8 +120,8 @@ fn next_card(rl : &mut Editor<(), FileHistory>, run : &mut PracticeRun, deck : &
 fn card_choice(rl : &mut Editor<(), FileHistory>, card_id : usize, run : &mut PracticeRun) -> Result<bool, Box<dyn Error>> {
 
     loop {
-        println!("How'd you do?");
-        println!("1: skip, 2: incorrect, 3: working, 4: memorized, or quit?");
+        println!("1: skip ({}), 2: incorrect ({}), 3: working ({}), 4: memorized ({}), or quit?",
+            run.remaining.len(), run.incorrect.len(), run.working.len(), run.memorized.len());
 
         let line = rl.readline(">>")?;
 
