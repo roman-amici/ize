@@ -1,11 +1,10 @@
 use std::{
-    collections::{HashSet, HashMap},
+    collections::{HashMap, HashSet},
     error::Error,
     fmt::Display,
-    fs::{File, self},
+    fs::{self, File},
     io::{BufRead, BufReader, BufWriter, Lines, Write},
     iter::Peekable,
-    str::ParseBoolError,
 };
 
 use crate::{Card, Deck, PracticeRun};
@@ -150,7 +149,7 @@ pub fn save_deck(filepath: &str, deck: Deck) -> Result<(), Box<dyn Error>> {
 
     writeln!(&mut writer, "")?;
 
-    for (_,card) in deck.cards {
+    for (_, card) in deck.cards {
         writeln!(&mut writer, "{}", card.card_id)?;
         writeln!(&mut writer, "{}", &card.front)?;
         writeln!(&mut writer, "{}", &card.back)?;
@@ -260,7 +259,7 @@ pub fn load_practice_run(filepath: &str) -> Result<(PracticeRun, Deck), Box<dyn 
     let deck = load_deck(&run.deck_path)?;
 
     // Add any newly added cards into the run set.
-    for (_,card) in deck.cards.iter() {
+    for (_, card) in deck.cards.iter() {
         if !run_ids.contains(&card.card_id) {
             run.remaining.push(card.card_id);
         }

@@ -2,5 +2,6 @@
 
 members = [
     "ize-core",
-    "ize-repl"
+    "ize-repl",
+    "ize-tui",
 ]
