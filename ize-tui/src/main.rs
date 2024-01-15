@@ -1,24 +1,31 @@
-use std::{error::Error, any};
+use std::{any, error::Error};
 
 use cursive::{
     align::{Align, HAlign, VAlign},
     event::{EventResult, Key},
-    view::{Nameable, Resizable},
+    view::{scroll::on_event, Nameable, Resizable},
     views::{
         Button, Dialog, DummyView, EditView, Layer, LinearLayout, NamedView, OnEventView,
-        SelectView, TextArea, TextContent, TextView,
+        ProgressBar, SelectView, TextArea, TextContent, TextView,
     },
     Cursive, View,
 };
 use ize_core::{
-    prelude::{load_practice_run, RunCategory, load_deck},
-    Deck, PracticeRun,
+    prelude::{load_deck, load_practice_run, RunCategory},
+    Card, Deck, PracticeRun,
 };
 
 const MAIN_MENU: &str = "MainMenu";
 const RUN_SELECT: &str = "RunSelect";
 const CARD_VIEW: &str = "CardView";
 const CARD_CONTENT: &str = "CardContent";
+const RUN_PROGRESS_BAR: &str = "RunProgress";
+
+struct RunState {
+    run_data: RunData,
+    card_content_state: CardContentState,
+    count: usize,
+}
 
 struct RunData {
     run: PracticeRun,
@@ -32,10 +39,10 @@ impl RunData {
         let current_card_id = self.run.remaining.last()?;
         Some(self.deck.cards[current_card_id].front.clone())
     }
-    
-    pub fn current_card_back(&self) -> Option<String>{
+
+    pub fn current_card_back(&self) -> Option<String> {
         let current_card_id = self.run.remaining.last().unwrap();
-        Some(self.deck.cards[current_card_id].front.clone())
+        Some(self.deck.cards[current_card_id].back.clone())
     }
 
     pub fn is_done(&self) -> bool {
@@ -43,6 +50,7 @@ impl RunData {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 enum CardContentState {
     Front,
     Back,
@@ -79,45 +87,80 @@ fn new_deck(siv: &mut Cursive) {}
 fn edit_deck(siv: &mut Cursive) {}
 
 fn new_run(siv: &mut Cursive) {
-    siv.set_user_data(DeckPath("../test_deck/state_capitols.deck".to_string()));
+    let run_state = new_run_state("../test_deck/state_capitols.deck");
 
-    begin_run(siv);
+    match run_state {
+        Err(e) => {
+            show_error(siv, e.as_ref());
+        }
+        Ok(run_state) => {
+            siv.set_user_data(run_state);
+            begin_run(siv);
+        }
+    }
+}
+
+fn new_run_state(deck_path: &str) -> Result<RunState, Box<dyn Error>> {
+    let deck = load_deck(deck_path)?;
+
+    let run = PracticeRun::new_from_deck(&deck);
+    let run_data = RunData { deck, run };
+
+    Ok(RunState {
+        card_content_state: CardContentState::Front,
+        run_data,
+        count: 0,
+    })
 }
 
 fn card_choice(siv: &mut Cursive, destination: RunCategory) {
-    println!("{:?}", destination);
+    siv.with_user_data(|state: &mut RunState| match destination {
+        RunCategory::Remaining => state.run_data.run.skip(),
+        _ => {
+            state
+                .run_data
+                .run
+                .move_last(RunCategory::Remaining, destination)
+                .expect("Error");
+            state.count += 1
+        }
+    });
+
+    let count = siv.user_data::<RunState>().unwrap().count;
+
+    siv.call_on_name(RUN_PROGRESS_BAR, |view: &mut ProgressBar| {
+        view.set_value(count)
+    })
+    .expect("View not found");
+
+    show_current_card(siv);
 }
 
 fn flip_card(siv: &mut Cursive) {
-    let state: CardContentState = siv.take_user_data().expect("Expected CardContentState");
+    let state: CardContentState = siv.user_data::<RunState>().unwrap().card_content_state;
 
-    let content = match state {
+    match state {
         CardContentState::Front => {
-
-            siv.set_user_data(CardContentState::Back);
-
-            siv.call_on_name(CARD_VIEW, |view: &mut Dialog| {
-                view.set_title("Back");
-            })
-            .expect("View not found");
-
-            siv.with_user_data(|run_data : &mut RunData| {
-                run_data.current_card_back().unwrap()
-            }).expect("Expected RunData")
+            set_card_back(siv);
         }
         CardContentState::Back => {
-            siv.set_user_data(CardContentState::Front);
-
-            siv.call_on_name(CARD_VIEW, |view: &mut Dialog| {
-                view.set_title("Front");
-            })
-            .expect("View not found");
-
-            siv.with_user_data(|run_data : &mut RunData| {
-                run_data.current_card_front().unwrap()
-            }).expect("Expected RunData")
+            set_card_front(siv);
         }
     };
+}
+
+fn set_card_back(siv: &mut Cursive) {
+    siv.call_on_name(CARD_VIEW, |view: &mut Dialog| {
+        view.set_title("Back");
+    })
+    .expect("View not found");
+
+    let content = siv
+        .with_user_data(|state: &mut RunState| {
+            state.card_content_state = CardContentState::Back;
+            state.run_data.current_card_back().unwrap()
+        })
+        .expect("Expected run data");
 
     siv.call_on_name(CARD_CONTENT, |view: &mut TextView| {
         view.set_content(content);
@@ -125,62 +168,44 @@ fn flip_card(siv: &mut Cursive) {
     .expect("View not found");
 }
 
-fn show_current_card(siv : &mut Cursive) {
+fn set_card_front(siv: &mut Cursive) {
+    siv.call_on_name(CARD_VIEW, |view: &mut Dialog| {
+        view.set_title("Front");
+    })
+    .expect("View not found");
 
-    let done = siv.with_user_data(|d : &mut RunData| {
-        d.is_done()
-    }).expect("Expected RunData");
+    let content = siv
+        .with_user_data(|state: &mut RunState| {
+            state.card_content_state = CardContentState::Front;
+            state.run_data.current_card_front().unwrap()
+        })
+        .expect("Expected run data");
+
+    siv.call_on_name(CARD_CONTENT, |view: &mut TextView| {
+        view.set_content(content);
+    })
+    .expect("View not found");
+}
+
+fn show_current_card(siv: &mut Cursive) {
+    let done = siv
+        .user_data::<RunState>()
+        .as_ref()
+        .unwrap()
+        .run_data
+        .is_done();
 
     if done {
         // Do something...
         return;
     }
 
-    siv.set_user_data(CardContentState::Front);
-
-    siv.call_on_name(CARD_VIEW, |view: &mut Dialog| {
-        view.set_title("Front");
-    })
-    .expect("View not found");
-
-    let content = siv.with_user_data(|run_data : &mut RunData|{
-        run_data.current_card_front().unwrap()
-    }).expect("Expected run data");
-
-    siv.call_on_name(CARD_CONTENT, |view: &mut TextView| {
-        view.set_content(content);
-    })
-    .expect("View not found");
-
-}
-
-fn anything(siv : &mut Cursive) {
-    let done = siv.with_user_data(|d : &mut RunData| {
-        d.is_done()
-    }).expect("Expected RunData");
-
-    siv.set_user_data(CardContentState::Front);
-
-    let done = siv.with_user_data(|d : &mut RunData| {
-        d.is_done()
-    }).expect("Expected RunData");
-}
-
-fn setup_new_run_data(siv : &mut Cursive) {
-    let deck_path = siv.take_user_data::<DeckPath>().expect("Expected DeckPath").0;
-    let deck = load_deck(&deck_path).expect("Load failed.");
-
-    let run = PracticeRun::new_from_deck(&deck);
-    siv.set_user_data(RunData{ run, deck});
+    set_card_front(siv);
 }
 
 // Assume that user data has been set
 fn begin_run(siv: &mut Cursive) {
     siv.pop_layer();
-
-    if siv.with_user_data(|_ : &mut RunData|{}).is_none() {
-        setup_new_run_data(siv);
-    }
 
     let card_view = Dialog::new()
         .title("Front")
@@ -209,15 +234,41 @@ fn begin_run(siv: &mut Cursive) {
             card_choice(s, RunCategory::Memorized);
         }))
         .child(DummyView)
-        .child(Button::new("Quit", |s| s.quit()));
+        .child(Button::new("Quit", |s| {
+            main_menu(s);
+        }));
 
-    let wrapper = OnEventView::new(LinearLayout::vertical().child(card_view).child(bottom_menu))
+    let n_cards = siv
+        .user_data::<RunState>()
+        .unwrap()
+        .run_data
+        .run
+        .remaining
+        .len();
+
+    let progress = ProgressBar::new()
+        .min(0)
+        .max(n_cards)
+        .with_label(|value, (_, max)| format!("{value} / {max}"))
+        .with_name(RUN_PROGRESS_BAR);
+
+    let run_screen = LinearLayout::vertical()
+        .child(card_view)
+        .child(progress)
+        .child(bottom_menu);
+
+    let key_wrapper = OnEventView::new(run_screen)
         .on_event(' ', |s| flip_card(s))
-        .on_event('1', |s| card_choice(s, RunCategory::Remaining));
+        .on_event('1', |s| card_choice(s, RunCategory::Remaining))
+        .on_event('2', |s| card_choice(s, RunCategory::Incorrect))
+        .on_event('3', |s| card_choice(s, RunCategory::Working))
+        .on_event('4', |s| card_choice(s, RunCategory::Memorized))
+        .on_event('q', |s| {
+            main_menu(s);
+        });
 
-    siv.add_layer(wrapper);
-    anything(siv);
-    //show_current_card(siv);
+    siv.add_layer(key_wrapper);
+    show_current_card(siv);
 }
 
 fn show_error(siv: &mut Cursive, err: &dyn Error) {

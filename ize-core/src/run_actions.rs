@@ -4,7 +4,7 @@ use rand::{seq::SliceRandom, thread_rng};
 
 use crate::PracticeRun;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RunCategory {
     Remaining,
     Memorized,
@@ -26,6 +26,7 @@ impl Into<usize> for RunCategory {
 #[derive(Debug, Clone, Copy)]
 pub enum RunActionError {
     IdNotFound(usize, RunCategory),
+    ArrayEmpty(RunCategory),
 }
 
 impl Display for RunActionError {
@@ -72,6 +73,23 @@ impl PracticeRun {
     pub fn shuffle_all(&mut self) {
         let mut array = self.category_array();
         array.iter_mut().for_each(|v| Self::shuffle_vec(v));
+    }
+
+    pub fn move_last(
+        &mut self,
+        source_category: RunCategory,
+        destination_category: RunCategory,
+    ) -> Result<(), RunActionError> {
+        let array = self.category_array();
+        let src_cat: usize = source_category.into();
+        let dest_cat: usize = destination_category.into();
+
+        if let Some(id) = array[src_cat].pop() {
+            array[dest_cat].push(id);
+            Ok(())
+        } else {
+            Err(RunActionError::ArrayEmpty(source_category))
+        }
     }
 
     pub fn move_index(
