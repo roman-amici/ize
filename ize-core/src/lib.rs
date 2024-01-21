@@ -6,8 +6,8 @@ mod run_actions;
 pub mod prelude {
     pub use super::deck_io::load_deck;
     pub use super::deck_io::load_practice_run;
-    pub use super::deck_io::save_practice_run;
     pub use super::deck_io::save_deck;
+    pub use super::deck_io::save_practice_run;
     pub use super::run_actions::*;
     pub use super::Card;
     pub use super::PracticeRun;
@@ -15,7 +15,7 @@ pub mod prelude {
 
 pub struct PracticeRun {
     pub deck_path: String,
-    pub last_save : String,
+    pub last_save: String,
 
     pub remaining: Vec<usize>,
     pub memorized: Vec<usize>,
@@ -35,10 +35,10 @@ impl PracticeRun {
         }
     }
 
-    pub fn new_from_deck(deck : &Deck) -> Self {
+    pub fn new_from_deck(deck: &Deck) -> Self {
         let mut run = Self::new();
 
-        run.remaining = deck.cards.iter().map(|(id,_)| *id).collect();
+        run.remaining = deck.cards.iter().map(|(id, _)| *id).collect();
         run.shuffle(run_actions::RunCategory::Remaining);
 
         run
@@ -46,7 +46,7 @@ impl PracticeRun {
 }
 
 pub struct Deck {
-    pub cards: HashMap<usize,Card>,
+    pub cards: HashMap<usize, Card>,
 }
 
 pub struct Card {

@@ -1,19 +1,23 @@
-use std::{any, error::Error};
+use std::error::Error;
+
+mod file_explorer;
+mod utils;
 
 use cursive::{
     align::{Align, HAlign, VAlign},
-    event::{EventResult, Key},
-    view::{scroll::on_event, Nameable, Resizable},
+    view::{Nameable, Resizable},
     views::{
-        Button, Dialog, DummyView, EditView, Layer, LinearLayout, NamedView, OnEventView,
-        ProgressBar, SelectView, TextArea, TextContent, TextView,
+        Button, Dialog, DummyView, EditView, LinearLayout, OnEventView, ProgressBar, SelectView,
+        TextView,
     },
-    Cursive, View, reexports::crossbeam_channel::Select, utils::Counter,
+    Cursive,
 };
+use file_explorer::show_file_explorer;
 use ize_core::{
     prelude::{load_deck, load_practice_run, RunCategory},
-    Card, Deck, PracticeRun,
+    Deck, PracticeRun,
 };
+use utils::show_error;
 
 const MAIN_MENU: &str = "MainMenu";
 const RUN_SELECT: &str = "RunSelect";
@@ -87,17 +91,19 @@ fn new_deck(siv: &mut Cursive) {}
 fn edit_deck(siv: &mut Cursive) {}
 
 fn new_run(siv: &mut Cursive) {
-    let run_state = new_run_state("../test_deck/state_capitols.deck");
+    show_file_explorer(siv, "./".to_string());
 
-    match run_state {
-        Err(e) => {
-            show_error(siv, e.as_ref());
-        }
-        Ok(run_state) => {
-            siv.set_user_data(run_state);
-            begin_run(siv);
-        }
-    }
+    // let run_state = new_run_state("../test_deck/state_capitols.deck");
+
+    // match run_state {
+    //     Err(e) => {
+    //         show_error(siv, e.as_ref());
+    //     }
+    //     Ok(run_state) => {
+    //         siv.set_user_data(run_state);
+    //         begin_run(siv);
+    //     }
+    // }
 }
 
 fn new_run_state(deck_path: &str) -> Result<RunState, Box<dyn Error>> {
@@ -136,10 +142,15 @@ fn card_choice(siv: &mut Cursive, destination: RunCategory) {
     show_current_card(siv);
 }
 
-fn reset_run(siv : &mut Cursive)
-{
+fn reset_run(siv: &mut Cursive) {
     let count = siv.user_data::<RunState>().unwrap().count;
-    let max = siv.user_data::<RunState>().unwrap().run_data.run.remaining.len();
+    let max = siv
+        .user_data::<RunState>()
+        .unwrap()
+        .run_data
+        .run
+        .remaining
+        .len();
     siv.call_on_name(RUN_PROGRESS_BAR, |view: &mut ProgressBar| {
         view.set_max(max);
         view.set_value(count);
@@ -200,41 +211,48 @@ fn set_card_front(siv: &mut Cursive) {
     .expect("View not found");
 }
 
-fn show_done_menu(siv : &mut Cursive)
-{
-    let (mem_count, working_count, inc_count) = siv.with_user_data(|state : &mut RunState|
-    {
-        (state.run_data.run.memorized.len(), state.run_data.run.working.len(), state.run_data.run.incorrect.len())
-    }).expect("User data failed.");
+fn show_done_menu(siv: &mut Cursive) {
+    let (mem_count, working_count, inc_count) = siv
+        .with_user_data(|state: &mut RunState| {
+            (
+                state.run_data.run.memorized.len(),
+                state.run_data.run.working.len(),
+                state.run_data.run.incorrect.len(),
+            )
+        })
+        .expect("User data failed.");
     let all_count = mem_count + working_count + inc_count;
 
     let mut select_view = SelectView::new();
     select_view.add_item(format!("All ({})", all_count), RunCategory::Remaining);
     if inc_count > 0 {
-        select_view.add_item(format!("Incorrect ({})",inc_count), RunCategory::Incorrect);
+        select_view.add_item(format!("Incorrect ({})", inc_count), RunCategory::Incorrect);
     }
     if working_count > 0 {
         select_view.add_item(format!("Working ({})", working_count), RunCategory::Working);
-    } 
+    }
     if mem_count > 0 {
         select_view.add_item(format!("Memorized ({})", mem_count), RunCategory::Memorized);
     }
-    
+
     let select_view = select_view.on_submit(|s, run_category| {
-        s.with_user_data(|state : &mut RunState| {
+        s.with_user_data(|state: &mut RunState| {
             match run_category {
                 RunCategory::Remaining => state.run_data.run.reset(),
                 _ => {
-                    state.run_data.run.move_category(*run_category, RunCategory::Remaining);
+                    state
+                        .run_data
+                        .run
+                        .move_category(*run_category, RunCategory::Remaining);
                     state.run_data.run.shuffle(RunCategory::Remaining);
                 }
             }
             state.count = 0;
-        }).expect("Run data not found");
+        })
+        .expect("Run data not found");
 
         s.pop_layer();
         reset_run(s);
-
     });
 
     siv.add_layer(
@@ -330,17 +348,6 @@ fn begin_run(siv: &mut Cursive) {
 
     siv.add_layer(key_wrapper);
     show_current_card(siv);
-}
-
-fn show_error(siv: &mut Cursive, err: &dyn Error) {
-    siv.add_layer(
-        Dialog::new()
-            .title("Error!")
-            .content(TextView::new(err.to_string()))
-            .button("Ok", |s| {
-                s.pop_layer();
-            }),
-    )
 }
 
 fn load_run(siv: &mut Cursive, file_path: &str) {
