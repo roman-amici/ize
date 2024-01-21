@@ -127,6 +127,15 @@ impl PracticeRun {
         array[dest_cat].append(&mut src);
     }
 
+    pub fn reset(&mut self)
+    {
+        self.move_category(RunCategory::Incorrect, RunCategory::Remaining);
+        self.move_category(RunCategory::Memorized, RunCategory::Remaining);
+        self.move_category(RunCategory::Working, RunCategory::Remaining);
+
+        self.shuffle(RunCategory::Remaining);
+    }
+
     pub fn skip(&mut self) {
         if let Some(element) = self.remaining.pop() {
             self.remaining.insert(0, element);

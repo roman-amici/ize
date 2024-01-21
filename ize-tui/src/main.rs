@@ -8,7 +8,7 @@ use cursive::{
         Button, Dialog, DummyView, EditView, Layer, LinearLayout, NamedView, OnEventView,
         ProgressBar, SelectView, TextArea, TextContent, TextView,
     },
-    Cursive, View,
+    Cursive, View, reexports::crossbeam_channel::Select, utils::Counter,
 };
 use ize_core::{
     prelude::{load_deck, load_practice_run, RunCategory},
@@ -136,6 +136,19 @@ fn card_choice(siv: &mut Cursive, destination: RunCategory) {
     show_current_card(siv);
 }
 
+fn reset_run(siv : &mut Cursive)
+{
+    let count = siv.user_data::<RunState>().unwrap().count;
+    let max = siv.user_data::<RunState>().unwrap().run_data.run.remaining.len();
+    siv.call_on_name(RUN_PROGRESS_BAR, |view: &mut ProgressBar| {
+        view.set_max(max);
+        view.set_value(count);
+    })
+    .expect("View not found");
+
+    show_current_card(siv);
+}
+
 fn flip_card(siv: &mut Cursive) {
     let state: CardContentState = siv.user_data::<RunState>().unwrap().card_content_state;
 
@@ -187,6 +200,54 @@ fn set_card_front(siv: &mut Cursive) {
     .expect("View not found");
 }
 
+fn show_done_menu(siv : &mut Cursive)
+{
+    let (mem_count, working_count, inc_count) = siv.with_user_data(|state : &mut RunState|
+    {
+        (state.run_data.run.memorized.len(), state.run_data.run.working.len(), state.run_data.run.incorrect.len())
+    }).expect("User data failed.");
+    let all_count = mem_count + working_count + inc_count;
+
+    let mut select_view = SelectView::new();
+    select_view.add_item(format!("All ({})", all_count), RunCategory::Remaining);
+    if inc_count > 0 {
+        select_view.add_item(format!("Incorrect ({})",inc_count), RunCategory::Incorrect);
+    }
+    if working_count > 0 {
+        select_view.add_item(format!("Working ({})", working_count), RunCategory::Working);
+    } 
+    if mem_count > 0 {
+        select_view.add_item(format!("Memorized ({})", mem_count), RunCategory::Memorized);
+    }
+    
+    let select_view = select_view.on_submit(|s, run_category| {
+        s.with_user_data(|state : &mut RunState| {
+            match run_category {
+                RunCategory::Remaining => state.run_data.run.reset(),
+                _ => {
+                    state.run_data.run.move_category(*run_category, RunCategory::Remaining);
+                    state.run_data.run.shuffle(RunCategory::Remaining);
+                }
+            }
+            state.count = 0;
+        }).expect("Run data not found");
+
+        s.pop_layer();
+        reset_run(s);
+
+    });
+
+    siv.add_layer(
+        Dialog::new()
+            .title("Which pile to reshuffle?")
+            .content(select_view)
+            .button("Quit", |s| {
+                s.pop_layer();
+                main_menu(s);
+            }),
+    )
+}
+
 fn show_current_card(siv: &mut Cursive) {
     let done = siv
         .user_data::<RunState>()
@@ -196,7 +257,7 @@ fn show_current_card(siv: &mut Cursive) {
         .is_done();
 
     if done {
-        // Do something...
+        show_done_menu(siv);
         return;
     }
 
