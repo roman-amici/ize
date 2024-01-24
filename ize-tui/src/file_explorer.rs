@@ -8,7 +8,7 @@ use std::{
 
 use cursive::{
     view::{Nameable, Resizable},
-    views::{LinearLayout, Panel, SelectView, TextArea, TextContent, TextView},
+    views::{Dialog, LinearLayout, Panel, SelectView, TextArea, TextContent, TextView},
     Cursive, View,
 };
 
@@ -28,7 +28,12 @@ fn update_file_name(siv: &mut Cursive, file_name: String) {
     });
 }
 
-pub fn show_file_explorer(siv: &mut Cursive, base_path: String) {
+pub fn show_file_explorer(
+    siv: &mut Cursive,
+    base_path: String,
+    select_action: Box<dyn Fn(&mut Cursive, &str)>,
+    cancel_action: Box<dyn Fn(&mut Cursive)>,
+) {
     let base_path = Path::new(&base_path)
         .canonicalize()
         .unwrap()
@@ -80,9 +85,28 @@ pub fn show_file_explorer(siv: &mut Cursive, base_path: String) {
         .child(TextArea::new().with_name(FILE_EXPLORER_FILE_NAME))
         .fixed_size((55, 20));
 
-    siv.add_layer(layout);
+    siv.add_layer(
+        Dialog::new()
+            .title("Select a file")
+            .content(layout)
+            .button("Cancel", move |s| {
+                // Close the dialog
+                cancel_action(s);
+            })
+            .button("Ok", move |s| {
+                let file_name = read_selected_file(s);
+                select_action(s, &file_name);
+            }),
+    );
 
     update_directory_view(siv, fs);
+}
+
+fn read_selected_file(s: &mut Cursive) -> String {
+    s.call_on_name(FILE_EXPLORER_FILE_NAME, |view: &mut TextArea| {
+        view.get_content().to_string()
+    })
+    .expect("Expected view.")
 }
 
 fn update_directory_view(siv: &mut Cursive, fs: Arc<Mutex<FileState>>) {
