@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{env, error::Error};
 
 mod file_explorer;
 mod practice_run;
@@ -50,10 +50,33 @@ enum CardContentState {
     Back,
 }
 
+fn try_load_args(siv : &mut Cursive, path : &str) -> Result<(), Box<dyn Error>> {
+    // First try loading it as a run.
+   let result = load_run_state(path);
+
+   // If that doesn't work load it as a deck.
+   let run_state = if let Ok(run_state) = result {
+    run_state
+   } else {
+    new_run_state(path).unwrap()
+   };
+
+   siv.pop_layer();
+   siv.set_user_data(run_state);
+   begin_run(siv);
+
+   Ok(())
+}
+
 fn main() {
     let mut siv = cursive::default();
 
-    main_menu(&mut siv);
+    let args : Vec<String> = env::args().collect();
+    if args.len() >= 2 && try_load_args(&mut siv, &args[1]).is_ok() {
+    }
+    else {
+        main_menu(&mut siv);
+    }
 
     siv.run();
 }
