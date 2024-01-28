@@ -56,7 +56,7 @@ fn scan_or_error(
 }
 
 fn scan(reader: &mut Peekable<Lines<BufReader<File>>>) -> Result<bool, Box<dyn Error>> {
-    // Iterate until we hit a non-empy line
+    // Iterate until we hit a non-empty line
 
     loop {
         if let Some(line) = reader.peek() {
@@ -169,6 +169,8 @@ fn read_id_list(
                 Ok(line) => {
                     if let Ok(parsed) = line.parse() {
                         vec.push(parsed);
+                        // Safe to unwrap due to the prior peek succeeding.
+                        _ = reader.next().unwrap();
                     } else {
                         // return on the first failed parse
                         return Ok(vec);
@@ -195,7 +197,7 @@ fn load_practice_run_file(filepath: &str) -> Result<PracticeRun, Box<dyn Error>>
 
     run.deck_path = read_text(reader)?;
 
-    while !scan(reader)? {
+    while scan(reader)? {
         let header = read_text(reader)?.to_lowercase();
         if header == "remaining" {
             run.remaining = read_id_list(reader)?;

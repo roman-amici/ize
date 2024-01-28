@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{cmp::max, path::Path};
 
 use cursive::{
     align::{Align, HAlign, VAlign},
@@ -277,9 +277,11 @@ pub fn begin_run(siv: &mut Cursive) {
         .remaining
         .len();
 
+    // if max = 0, then the progress bar will panic.
+    let max_cards = max(1, n_cards);
     let progress = ProgressBar::new()
         .min(0)
-        .max(n_cards)
+        .max(max_cards)
         .with_label(|value, (_, max)| format!("{value} / {max}"))
         .with_name(RUN_PROGRESS_BAR);
 
@@ -300,14 +302,4 @@ pub fn begin_run(siv: &mut Cursive) {
 
     siv.add_layer(key_wrapper);
     show_current_card(siv);
-}
-
-fn load_run(siv: &mut Cursive, file_path: &str) {
-    match load_practice_run(file_path) {
-        Ok((run, deck)) => {
-            siv.set_user_data(RunData { deck, run });
-            begin_run(siv);
-        }
-        Err(e) => show_error(siv, e.as_ref()),
-    }
 }
