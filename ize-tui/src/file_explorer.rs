@@ -7,25 +7,65 @@ use std::{
 };
 
 use cursive::{
-    view::{Nameable, Resizable},
-    views::{Dialog, LinearLayout, Panel, SelectView, TextArea, TextContent, TextView},
-    Cursive, View,
+    view::{Nameable, Resizable, Scrollable},
+    views::{Dialog, EditView, LinearLayout, SelectView, TextView},
+    Cursive,
 };
 
 use crate::utils::show_error;
 
 struct FileState {
     current_directory: String,
+    file_action: Box<dyn Fn(&mut Cursive, &str)>,
 }
 
 const FILE_EXPLORER_SELECT_LIST: &str = "FILE_EXPLORER_SELECT_LIST";
 const FILE_EXPLORER_CURRENT_DIRECTORY: &str = "FILE_EXPLORER_CURRENT_DIRECTORY";
 const FILE_EXPLORER_FILE_NAME: &str = "FILE_EXPLORER_FILE_NAME";
 
-fn update_file_name(siv: &mut Cursive, file_name: String) {
-    siv.call_on_name(FILE_EXPLORER_FILE_NAME, |view: &mut TextArea| {
+fn update_file_name(siv: &mut Cursive, file_name: String) -> bool {
+    siv.call_on_name(FILE_EXPLORER_FILE_NAME, |view: &mut EditView| {
+        let equal = view.get_content().as_ref() == &file_name;
+
         view.set_content(file_name);
-    });
+
+        equal
+    })
+    .unwrap()
+}
+
+fn on_file_selector_submit(s: &mut Cursive, file: &String, file_state: &Mutex<FileState>) {
+    let mut update_directory = false;
+    {
+        let mut file_state = file_state.lock().unwrap();
+        let dir = Path::new(&file_state.current_directory);
+
+        if file == ".." {
+            if let Some(parent) = dir.parent() {
+                file_state.current_directory = parent.to_str().unwrap().to_string();
+                update_directory = true;
+            }
+        } else if file == "." {
+            update_file_name(s, dir.as_os_str().to_str().unwrap().to_string());
+        } else {
+            let abs_path = dir.join(Path::new(file));
+            if abs_path.is_dir() {
+                file_state.current_directory = abs_path.to_str().unwrap().to_string();
+                update_directory = true;
+            } else {
+                let equal = update_file_name(s, abs_path.to_str().unwrap().to_string());
+
+                if equal {
+                    let file_name = read_selected_file(s);
+                    (file_state.file_action)(s, &file_name);
+                }
+            }
+        }
+    };
+
+    if update_directory {
+        update_directory_view(s, file_state);
+    }
 }
 
 pub fn show_file_explorer(
@@ -43,46 +83,22 @@ pub fn show_file_explorer(
 
     let fs = Arc::new(Mutex::new(FileState {
         current_directory: base_path.clone(),
+        file_action: select_action,
     }));
 
     let fs1 = fs.clone();
+    let fs2 = fs.clone();
 
     let sl = SelectView::<String>::new()
-        .on_submit(move |s, file: &String| {
-            let mut update_directory = false;
-            {
-                let mut file_state = fs1.lock().unwrap();
-                let dir = Path::new(&file_state.current_directory);
-
-                if file == ".." {
-                    if let Some(parent) = dir.parent() {
-                        file_state.current_directory = parent.to_str().unwrap().to_string();
-                        update_directory = true;
-                    }
-                } else if file == "." {
-                    update_file_name(s, dir.as_os_str().to_str().unwrap().to_string())
-                } else {
-                    let abs_path = dir.join(Path::new(file));
-                    if abs_path.is_dir() {
-                        file_state.current_directory = abs_path.to_str().unwrap().to_string();
-                        update_directory = true;
-                    } else {
-                        update_file_name(s, abs_path.to_str().unwrap().to_string());
-                    }
-                }
-            };
-
-            if update_directory {
-                update_directory_view(s, fs1.clone());
-            }
-        })
+        .on_submit(move |s, file: &String| on_file_selector_submit(s, file, &fs1))
         .with_name(FILE_EXPLORER_SELECT_LIST)
-        .fixed_size((50, 15));
+        .scrollable()
+        .fixed_size((50, 13));
 
     let layout = LinearLayout::vertical()
         .child(TextView::new(base_path.clone()).with_name(FILE_EXPLORER_CURRENT_DIRECTORY))
         .child(sl)
-        .child(TextArea::new().with_name(FILE_EXPLORER_FILE_NAME))
+        .child(EditView::new().with_name(FILE_EXPLORER_FILE_NAME))
         .fixed_size((55, 20));
 
     siv.add_layer(
@@ -95,21 +111,24 @@ pub fn show_file_explorer(
             })
             .button("Ok", move |s| {
                 let file_name = read_selected_file(s);
-                select_action(s, &file_name);
+                {
+                    let file_data = fs2.lock().unwrap();
+                    (file_data.file_action)(s, &file_name);
+                }
             }),
     );
 
-    update_directory_view(siv, fs);
+    update_directory_view(siv, &fs);
 }
 
 fn read_selected_file(s: &mut Cursive) -> String {
-    s.call_on_name(FILE_EXPLORER_FILE_NAME, |view: &mut TextArea| {
+    s.call_on_name(FILE_EXPLORER_FILE_NAME, |view: &mut EditView| {
         view.get_content().to_string()
     })
     .expect("Expected view.")
 }
 
-fn update_directory_view(siv: &mut Cursive, fs: Arc<Mutex<FileState>>) {
+fn update_directory_view(siv: &mut Cursive, fs: &Mutex<FileState>) {
     let path = {
         let file_state = fs.lock().unwrap();
         PathBuf::from_str(&file_state.current_directory).unwrap()

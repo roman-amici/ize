@@ -288,10 +288,12 @@ pub fn begin_run(siv: &mut Cursive) {
     let run_screen = LinearLayout::vertical()
         .child(card_view)
         .child(progress)
-        .child(bottom_menu);
+        .child(bottom_menu)
+        .fixed_width(55);
 
     let key_wrapper = OnEventView::new(run_screen)
         .on_event(' ', |s| flip_card(s))
+        .on_event('0', |s| flip_card(s))
         .on_event('1', |s| card_choice(s, RunCategory::Remaining))
         .on_event('2', |s| card_choice(s, RunCategory::Incorrect))
         .on_event('3', |s| card_choice(s, RunCategory::Working))
