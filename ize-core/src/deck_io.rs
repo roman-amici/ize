@@ -290,22 +290,35 @@ pub fn save_practice_run(filepath: &str, run: &PracticeRun) -> Result<(), Box<dy
     let mut writer = BufWriter::new(&file);
     let w = &mut writer;
 
+    // Sort to avoid churn in the format of the run file
+    let mut remaining = run.remaining.clone();
+    remaining.sort();
+
+    let mut working = run.working.clone();
+    working.sort();
+
+    let mut incorrect = run.working.clone();
+    incorrect.sort();
+
+    let mut memorized = run.working.clone();
+    memorized.sort();
+
     writeln!(w, "")?;
 
     writeln!(w, "{}", run.deck_path)?;
     writeln!(w, "")?;
 
     writeln!(w, "remaining")?;
-    write_ids(w, &run.remaining)?;
+    write_ids(w, &remaining)?;
 
     writeln!(w, "working")?;
-    write_ids(w, &run.working)?;
+    write_ids(w, &working)?;
 
     writeln!(w, "incorrect")?;
-    write_ids(w, &run.incorrect)?;
+    write_ids(w, &incorrect)?;
 
     writeln!(w, "memorized")?;
-    write_ids(w, &run.memorized)?;
+    write_ids(w, &memorized)?;
 
     writeln!(w, "")?;
 

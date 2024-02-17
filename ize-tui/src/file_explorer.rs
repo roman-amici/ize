@@ -53,11 +53,12 @@ fn on_file_selector_submit(s: &mut Cursive, file: &String, file_state: &Mutex<Fi
                 file_state.current_directory = abs_path.to_str().unwrap().to_string();
                 update_directory = true;
             } else {
-                let equal = update_file_name(s, abs_path.to_str().unwrap().to_string());
+                let equal = update_file_name(s, file.clone());
 
                 if equal {
                     let file_name = read_selected_file(s);
-                    (file_state.file_action)(s, &file_name);
+                    let save_path = get_file_full_path(&file_state.current_directory, &file_name);
+                    (file_state.file_action)(s, &save_path);
                 }
             }
         }
@@ -113,7 +114,8 @@ pub fn show_file_explorer(
                 let file_name = read_selected_file(s);
                 {
                     let file_data = fs2.lock().unwrap();
-                    (file_data.file_action)(s, &file_name);
+                    let save_path = get_file_full_path(&file_data.current_directory, &file_name);
+                    (file_data.file_action)(s, &save_path);
                 }
             }),
     );
@@ -126,6 +128,21 @@ fn read_selected_file(s: &mut Cursive) -> String {
         view.get_content().to_string()
     })
     .expect("Expected view.")
+}
+
+fn get_file_full_path(current_dir : &str, file_name : &str) -> String
+{
+    let file_name_path = Path::new (file_name);
+    let current_dir_path = Path::new(current_dir);
+
+    if file_name_path.is_absolute() {
+        file_name.to_string()
+    } else {
+        let mut abs_path = current_dir_path.canonicalize().unwrap();
+        abs_path.push(&file_name_path);
+
+        abs_path.to_str().unwrap().to_string()
+    }
 }
 
 fn update_directory_view(siv: &mut Cursive, fs: &Mutex<FileState>) {
